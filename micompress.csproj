@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>micompress</ToolCommandName>
+    <PackageId>micompress</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>MiCompress</Authors>
+    <Company>MiCompress</Company>
+    <Description>Compress images, PDFs, video, audio, documents and archives via micompress.com.</Description>
+    <PackageProjectUrl>https://micompress.com</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/micompress/micompress-dotnet</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>compress;compression;image;pdf;optimize;minify;cli;micompress</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>

@@ -9,7 +9,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>micompress</ToolCommandName>
     <PackageId>micompress</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>MiCompress</Authors>
     <Company>MiCompress</Company>
     <Description>Compress images, PDFs, video, audio, documents and archives via micompress.com.</Description>

@@ -15,15 +15,43 @@ micompress *.png --preset extreme
 micompress report.pdf -o out/
 ```
 
-Options: `-o/--output`, `-p/--preset` (`lossless|recommended|extreme`), `--token`, `--api`, `-q/--quiet`.
+Options: `-o/--output`, `-p/--preset` (`lossless|recommended|extreme`), `--api-key` (personal API key, see below), `--token` (legacy login token), `--suffix`, `--api`, `-q/--quiet`.
+
+## API key
+
+Without a key the CLI works anonymously, with small file-size limits. For larger files and a
+monthly allowance, pass your personal API key (`mc_…`) — sign up for free and copy it from
+[micompress.com/account](https://micompress.com/account).
+
+```bash
+micompress --api-key mc_xxx photo.jpg
+# or
+export MICOMPRESS_API_KEY=mc_xxx
+micompress photo.jpg
+```
+
+`--api-key` takes precedence over `MICOMPRESS_API_KEY`. The key is sent as an `X-API-Key` header on
+the compress request only.
+
+| Plan | Compressions per month |
+| --- | --- |
+| Anonymous (no key) | works, small file-size limits |
+| Free account | 50 via the API, files up to 100 MB |
+| Plus ($9.99/mo) | 1,000 (shared with website usage) |
+| Pro ($19.99/mo) | 5,000 (shared with website usage) |
+
+When the allowance is used up the CLI prints the server's message (`API_QUOTA_REACHED` for the free
+key, `USAGE_LIMIT_REACHED` for paid plans). See [micompress.com/plans](https://micompress.com/plans).
+
+The older `--token <jwt>` (login token) option is still supported.
 
 ## Build & publish
 
-Requires the .NET SDK (not available on this build server):
+Requires the .NET 8 SDK:
 
 ```bash
 dotnet pack -c Release
-dotnet nuget push bin/Release/micompress.0.1.0.nupkg -k <API_KEY> -s https://api.nuget.org/v3/index.json
+dotnet nuget push bin/Release/micompress.0.1.1.nupkg -k <API_KEY> -s https://api.nuget.org/v3/index.json
 ```
 
 ## License

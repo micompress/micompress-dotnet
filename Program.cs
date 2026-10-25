@@ -2,7 +2,10 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 
 const string BaseUrl = "https://micompress.com";
-const string UserAgent = "micompress-dotnet/0.1.0 (+https://micompress.com)";
+const string Version = "0.1.1";
+const string UserAgent = "micompress-dotnet/" + Version + " (+https://micompress.com)";
+const string AccountUrl = "https://micompress.com/account";
+const string PlansUrl = "https://micompress.com/plans";
 
 var extCategory = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
 {
@@ -31,7 +34,7 @@ var categoryPath = new Dictionary<string, string>
 // ---- Parse args ----
 var files = new List<string>();
 string preset = "recommended", apiBase = BaseUrl, suffix = "-min";
-string? outputDir = null, token = null;
+string? outputDir = null, token = null, apiKey = null;
 bool quiet = false;
 
 for (int i = 0; i < args.Length; i++)
@@ -39,12 +42,13 @@ for (int i = 0; i < args.Length; i++)
     switch (args[i])
     {
         case "-h" or "--help": PrintHelp(); return 0;
-        case "-v" or "--version": Console.WriteLine("0.1.0"); return 0;
+        case "-v" or "--version": Console.WriteLine(Version); return 0;
         case "-q" or "--quiet": quiet = true; break;
         case "-o" or "--output": outputDir = args[++i]; break;
         case "-p" or "--preset": preset = args[++i]; break;
         case "--api": apiBase = args[++i]; break;
         case "--token": token = args[++i]; break;
+        case "--api-key": apiKey = args[++i]; break;
         case "--suffix": suffix = args[++i]; break;
         default:
             if (args[i].StartsWith('-')) { Console.Error.WriteLine($"Unknown option: {args[i]}"); return 1; }
@@ -52,10 +56,14 @@ for (int i = 0; i < args.Length; i++)
             break;
     }
 }
+// --api-key wins over the MICOMPRESS_API_KEY environment variable.
+if (string.IsNullOrWhiteSpace(apiKey)) apiKey = Environment.GetEnvironmentVariable("MICOMPRESS_API_KEY");
+apiKey = string.IsNullOrWhiteSpace(apiKey) ? null : apiKey.Trim();
 if (files.Count == 0) { PrintHelp(); return 1; }
 
 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
 http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+http.DefaultRequestHeaders.Add("X-MiCompress-Client", "dotnet/" + Version);
 if (token is not null)
     http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -97,15 +105,34 @@ async Task<(byte[] Bytes, Meta Meta)> CompressAsync(string path)
     var url = $"{apiBase.TrimEnd('/')}/{categoryPath[category]}/compress";
     using var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = form };
     req.Headers.Accept.ParseAdd("application/json");
+    // The API key goes on the compress request only (not the download).
+    if (apiKey is not null) req.Headers.Add("X-API-Key", apiKey);
     using var res = await http.SendAsync(req);
 
     var body = await res.Content.ReadAsStringAsync();
-    var meta = JsonSerializer.Deserialize<Meta>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+    Meta? meta;
+    try { meta = JsonSerializer.Deserialize<Meta>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }); }
+    catch (JsonException) { throw new Exception($"Unexpected response (HTTP {(int)res.StatusCode})"); }
     if (meta is null || !meta.Success || string.IsNullOrEmpty(meta.DownloadUrl))
-        throw new Exception(meta?.Error ?? $"HTTP {(int)res.StatusCode}");
+        throw new Exception(DescribeError((int)res.StatusCode, meta));
 
     var bytes = await http.GetByteArrayAsync($"{apiBase.TrimEnd('/')}{meta.DownloadUrl}");
     return (bytes, meta);
+}
+
+// Turn a failed API response into a helpful message (adds hints for auth/quota codes).
+static string DescribeError(int status, Meta? meta)
+{
+    var msg = meta?.Error ?? $"HTTP {status}";
+    return meta?.Code switch
+    {
+        "LOGIN_REQUIRED" => "File exceeds the anonymous size limit. Pass --api-key <key> or set MICOMPRESS_API_KEY " +
+                            $"(free key at {AccountUrl}).",
+        // Only append a link when the server text doesn't already include it.
+        "INVALID_API_KEY" when !msg.Contains(AccountUrl) => $"{msg} Check your key at {AccountUrl}",
+        "API_QUOTA_REACHED" or "USAGE_LIMIT_REACHED" when !msg.Contains(PlansUrl) => $"{msg} See plans and limits at {PlansUrl}",
+        _ => msg,
+    };
 }
 
 string OutPath(string input)
@@ -133,14 +160,19 @@ static void PrintHelp() => Console.WriteLine(
     "micompress <file...> [options]\n" +
     "  -o, --output DIR   Output directory\n" +
     "  -p, --preset NAME  lossless|recommended|extreme\n" +
-    "      --token JWT    Auth token for higher limits\n" +
+    "      --api-key KEY  Personal API key from micompress.com/account\n" +
+    "                     (or set MICOMPRESS_API_KEY)\n" +
+    "      --token JWT    Legacy login token (still supported)\n" +
+    "      --suffix STR   Suffix for output files (default -min)\n" +
     "      --api URL      API base URL\n" +
     "  -q, --quiet        Only print errors\n" +
+    $"Plans and limits: {PlansUrl}\n" +
     "Powered by micompress.com");
 
 record Meta
 {
     public bool Success { get; init; }
+    public string? Code { get; init; }
     public string? Error { get; init; }
     public string? DownloadUrl { get; init; }
     public long InputSize { get; init; }
